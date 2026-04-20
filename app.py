@@ -4,7 +4,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import os
 import json
-import subprocess
 
 # ---------- PAGE ----------
 st.set_page_config(page_title="Water Dashboard", layout="wide")
@@ -30,22 +29,6 @@ if "logged_in" not in st.session_state:
 
 if "page" not in st.session_state:
     st.session_state.page = "login"
-
-# ---------- AUTO SETUP (WORKS BOTH LOCAL + CLOUD) ----------
-def setup_files():
-    # Generate dataset if missing
-    if not os.path.exists("water_data_big.csv"):
-        try:
-            subprocess.run(["python", "generate_data.py"], check=True)
-        except:
-            pass
-
-    # Train model if missing
-    if not os.path.exists("model.pkl"):
-        try:
-            subprocess.run(["python", "model.py"], check=True)
-        except:
-            pass
 
 # ---------- LOGIN ----------
 def login_page():
@@ -89,14 +72,12 @@ def signup_page():
 # ---------- DASHBOARD ----------
 def dashboard():
 
-    setup_files()  # 👈 auto setup
-
-    # Load safely
+    # Load model + data
     try:
         model = pickle.load(open("model.pkl", "rb"))
         df = pd.read_csv("water_data_big.csv")
     except:
-        st.error("Error loading model or dataset")
+        st.error("Model or dataset not found. Please upload required files.")
         return
 
     # ---------- HEADER ----------
@@ -163,7 +144,12 @@ def dashboard():
 
     # ---------- DATA PREP ----------
     df["date"] = pd.to_datetime(df["date"])
-    df["zone_name"] = df["zone"]
+
+    df["zone_name"] = df["zone"].map({
+        0: "Residential_A",
+        1: "Commercial_B",
+        2: "Industrial_C"
+    })
 
     # ---------- GRAPHS ----------
     col1, col2 = st.columns(2)
