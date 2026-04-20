@@ -4,6 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import os
 import json
+import subprocess
 
 # ---------- PAGE ----------
 st.set_page_config(page_title="Water Dashboard", layout="wide")
@@ -29,6 +30,22 @@ if "logged_in" not in st.session_state:
 
 if "page" not in st.session_state:
     st.session_state.page = "login"
+
+# ---------- AUTO SETUP (WORKS BOTH LOCAL + CLOUD) ----------
+def setup_files():
+    # Generate dataset if missing
+    if not os.path.exists("water_data_big.csv"):
+        try:
+            subprocess.run(["python", "generate_data.py"], check=True)
+        except:
+            pass
+
+    # Train model if missing
+    if not os.path.exists("model.pkl"):
+        try:
+            subprocess.run(["python", "model.py"], check=True)
+        except:
+            pass
 
 # ---------- LOGIN ----------
 def login_page():
@@ -72,12 +89,15 @@ def signup_page():
 # ---------- DASHBOARD ----------
 def dashboard():
 
-    if not os.path.exists("model.pkl") or not os.path.exists("water_data_big.csv"):
-        st.error("Run generate_data.py and model.py first")
-        return
+    setup_files()  # 👈 auto setup
 
-    model = pickle.load(open("model.pkl", "rb"))
-    df = pd.read_csv("water_data_big.csv")
+    # Load safely
+    try:
+        model = pickle.load(open("model.pkl", "rb"))
+        df = pd.read_csv("water_data_big.csv")
+    except:
+        st.error("Error loading model or dataset")
+        return
 
     # ---------- HEADER ----------
     colA, colB = st.columns([8,1])
@@ -143,17 +163,15 @@ def dashboard():
 
     # ---------- DATA PREP ----------
     df["date"] = pd.to_datetime(df["date"])
-    df["zone_name"] = df["zone"]  # dataset already correct
+    df["zone_name"] = df["zone"]
 
     # ---------- GRAPHS ----------
     col1, col2 = st.columns(2)
 
-    # LINE GRAPH
     with col1:
         st.subheader("📈 Water Usage Trend")
 
         zone_sel = st.selectbox("Select Zone", df["zone_name"].unique())
-
         filtered = df[df["zone_name"] == zone_sel]
 
         fig = plt.figure()
@@ -163,14 +181,13 @@ def dashboard():
         plt.ylabel("Water Supply")
         st.pyplot(fig)
 
-    # BAR GRAPH
     with col2:
         st.subheader("📊 Average Demand by Zone")
 
         fig2 = plt.figure()
         df.groupby("zone_name")["water_supply"].mean().plot(kind="bar")
         plt.xlabel("Zone")
-        plt.ylabel("Avg Supply")
+        plt.ylabel("Average Supply")
         st.pyplot(fig2)
 
 # ---------- ROUTING ----------
